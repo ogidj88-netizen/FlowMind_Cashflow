@@ -4,8 +4,19 @@ __pycache__/
 *.pyo
 *.pyd
 
-# Runtime projects (НЕ комітимо execution state)
-projects/
+# Virtualenv
+.venv/
+env/
 
 # OS
 .DS_Store
+
+# Runtime
+projects/
+SCENE
+*.log
+*.tmp
+*.bak
+
+# Local state
+token.json
