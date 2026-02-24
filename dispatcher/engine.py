@@ -1,7 +1,7 @@
 """
 FlowMind Cashflow
-Production Orchestrator v1
-Deterministic Dispatcher
+Production Orchestrator v2
+Deterministic Dispatcher with Hard Lock
 """
 
 import json
@@ -59,6 +59,9 @@ def main():
         raise Exception("Project path does not exist")
 
     state = load_state(project_path)
+
+    if state.get("locked") is True:
+        raise Exception("Project is locked. Phase change not allowed.")
 
     current_phase = state.get("phase")
 
