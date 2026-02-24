@@ -54,6 +54,10 @@ def main():
         sys.exit(1)
 
     project_path = Path(sys.argv[1])
+
+    if not project_path.exists():
+        raise Exception("Project path does not exist")
+
     state = load_state(project_path)
 
     current_phase = state.get("phase")
