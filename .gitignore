@@ -1,2 +1,11 @@
+# Python
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+
+# Runtime projects (НЕ комітимо execution state)
+projects/
+
+# OS
+.DS_Store
