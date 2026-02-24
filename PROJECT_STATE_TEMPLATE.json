@@ -1,0 +1,21 @@
+{
+  "project_id": "",
+  "status": "INIT",
+  "current_phase": "S0",
+  "phases_completed": [],
+  "halt_reason": null,
+  "resume_hint": null,
+  "telegram": {
+    "approval_required": false,
+    "stage": null
+  },
+  "gates": {
+    "hook_passed": false,
+    "length_passed": false,
+    "yml_safe": false,
+    "ffprobe_passed": false,
+    "thumbnail_passed": false
+  },
+  "created_at": null,
+  "updated_at": null
+}
