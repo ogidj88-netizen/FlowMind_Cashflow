@@ -1,21 +1,22 @@
 {
-  "project_id": "",
-  "status": "INIT",
-  "current_phase": "S0",
-  "phases_completed": [],
-  "halt_reason": null,
-  "resume_hint": null,
-  "telegram": {
-    "approval_required": false,
-    "stage": null
+  "project_id": "FM_001",
+  "phase": "TOPIC",
+  "mode": "NORMAL",
+  "locked": false,
+
+  "topic": null,
+  "title": null,
+  "hook": null,
+
+  "script_path": null,
+  "video_path": null,
+  "thumbnail_path": null,
+
+  "metrics": {
+    "hook_score": null,
+    "estimated_duration_minutes": null
   },
-  "gates": {
-    "hook_passed": false,
-    "length_passed": false,
-    "yml_safe": false,
-    "ffprobe_passed": false,
-    "thumbnail_passed": false
-  },
-  "created_at": null,
-  "updated_at": null
+
+  "qa_passed": false,
+  "approved_for_upload": false
 }
