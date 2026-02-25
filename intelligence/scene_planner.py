@@ -1,11 +1,11 @@
 """
 FlowMind Cashflow Mode
-S3 — Scene Planner (Duration-Aware)
+S3 — Canonical Scene Planner (Audio Master Clock)
 
-Policy:
-- Target scene length: 10–18 sec
-- Avoid ultra-short scenes
-- Audio = master clock
+Rules:
+- Scene segmentation 10–18 sec
+- No duration loss
+- Total duration = S2 estimated duration
 """
 
 import json
@@ -13,16 +13,15 @@ from pathlib import Path
 from engine.state_manager import load_state, save_state
 
 WPM = 155
-MIN_SCENE_SEC = 8
-MAX_SCENE_SEC = 20
+TARGET_SCENE_SEC = 14
 
 
 def estimate_seconds(text: str):
     words = len(text.split())
-    return int((words / WPM) * 60)
+    return (words / WPM) * 60
 
 
-def split_into_chunks(text: str, target_sec=15):
+def split_into_chunks(text: str, target_sec=14):
     words = text.split()
     chunk_size = int(WPM * (target_sec / 60))
 
@@ -54,24 +53,31 @@ def run(project_path: Path):
     with open(full_script_path, "r") as f:
         script_text = f.read()
 
-    chunks = split_into_chunks(script_text, target_sec=14)
+    # Original duration from S2
+    original_minutes = state.get("metrics", {}).get("estimated_duration_minutes")
+    if not original_minutes:
+        raise Exception("Missing S2 duration metric")
+
+    original_seconds = original_minutes * 60
+
+    chunks = split_into_chunks(script_text, TARGET_SCENE_SEC)
 
     scenes = []
-    total_seconds = 0
+    recalculated_seconds = 0
 
     for idx, chunk in enumerate(chunks, start=1):
         sec = estimate_seconds(chunk)
 
-        if sec < MIN_SCENE_SEC:
-            continue
-
         scenes.append({
             "scene_id": idx,
             "text": chunk.strip(),
-            "estimated_duration_sec": sec
+            "estimated_duration_sec": round(sec, 2)
         })
 
-        total_seconds += sec
+        recalculated_seconds += sec
+
+    # Preserve original duration as master clock
+    total_seconds = original_seconds
 
     assets_dir = project_path / "assets"
     scene_file = assets_dir / "scene_plan.json"
@@ -89,10 +95,13 @@ def run(project_path: Path):
 
     save_state(project_path, state)
 
+    drift = abs(recalculated_seconds - total_seconds)
+
     print("S3 Scene plan generated.")
     print(f"Scenes: {len(scenes)}")
-    print(f"Total duration: {round(total_seconds/60,2)} minutes")
-
+    print(f"Total duration (master): {round(total_seconds/60,2)} minutes")
+    print(f"Drift: {round(drift,2)} seconds")
+    
 
 if __name__ == "__main__":
     import sys
