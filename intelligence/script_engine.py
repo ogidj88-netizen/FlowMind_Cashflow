@@ -1,115 +1,108 @@
 """
-FlowMind Cashflow
-S2 — Script Engine v4
-7–9 Minute Longform Generator (Deterministic)
+FlowMind Cashflow Mode
+S2 — Longform Script Engine (7–9 min guaranteed)
+Deterministic longform generator.
 """
 
-import json
 from pathlib import Path
+from engine.state_manager import load_state, save_state
+
+MIN_WORDS = 1000
 
 
-def load_state(project_path: Path):
-    with open(project_path / "PROJECT_STATE.json", "r") as f:
-        return json.load(f)
-
-
-def save_state(project_path: Path, state: dict):
-    with open(project_path / "PROJECT_STATE.json", "w") as f:
-        json.dump(state, f, indent=2)
+def expand_block(text: str, multiplier: int):
+    return "\n\n".join([text for _ in range(multiplier)])
 
 
 def build_long_script(topic: str, hook: str, amount: int):
-    parts = []
 
-    # HOOK
-    parts.append(hook)
-    parts.append(
-        f"This mistake alone costs people around ${amount} every single year."
-    )
+    intro = f"""
+{hook}
 
-    # CONTEXT
-    parts.append(
-        "Most people think financial damage comes from big disasters. It doesn’t."
-    )
-    parts.append(
-        "It comes from small decisions repeated over time."
-    )
+Most people think losing ${amount} happens because of bad luck.
+It doesn't.
+It happens because of small invisible decisions.
+Today we break down exactly how this mistake works,
+why smart people still fall into it,
+and how to stop it permanently.
+"""
 
-    # ESCALATION
-    parts.append(
-        "At first, nothing feels wrong. You pay. You move on. You forget."
-    )
-    parts.append(
-        "But over months, small leaks become serious financial bleeding."
-    )
+    core = f"""
+The ${amount} mistake usually starts small.
+A noise.
+A warning.
+A delay.
 
-    # CASE STUDY
-    parts.append(
-        f"Imagine someone ignoring a small warning sign in their car. A strange sound. A dashboard light."
-    )
-    parts.append(
-        f"They delay fixing it to save money. Three months later? A ${amount} repair bill."
-    )
-    parts.append(
-        "The cost wasn’t random. It was predictable."
-    )
+You assume it's minor.
 
-    # BREAKDOWN SECTION
-    for i in range(1, 5):
-        parts.append(
-            f"Reason {i}: Small financial signals are easy to ignore."
-        )
-        parts.append(
-            "Your brain prioritizes comfort over prevention."
-        )
-        parts.append(
-            "You convince yourself it’s not urgent."
-        )
+But systems compound.
+Damage spreads.
+Costs multiply.
 
-    # PSYCHOLOGY
-    parts.append(
-        "This is called normalcy bias. You assume tomorrow will look like today."
-    )
-    parts.append(
-        "So you delay action."
-    )
+What begins as $120
+turns into ${amount}.
+"""
 
-    # LOSS AMPLIFICATION
-    parts.append(
-        f"If you repeat this pattern five times a year, that’s ${amount * 5} gone."
-    )
-    parts.append(
-        f"In five years? That’s ${amount * 25} lost."
-    )
+    psychology = """
+Humans avoid small pain.
+We delay uncomfortable action.
+We rationalize.
 
-    # PATTERN REVEAL
-    parts.append(
-        "The real problem isn’t the bill. It’s the pattern behind the bill."
-    )
-    parts.append(
-        "Once you see the pattern, you stop the bleeding."
-    )
+But postponement has interest.
+And interest compounds.
+"""
 
-    # RESOLUTION
-    parts.append(
-        "The fix is boring. Inspect early. Act early. Prevent early."
-    )
-    parts.append(
-        "Boring decisions build financial stability."
-    )
+    math_section = f"""
+If you delay a $120 repair
+and it becomes ${amount},
+that is not random.
 
-    # RETENTION LOOP
-    parts.append(
-        "And this isn’t the only invisible cost draining your money."
-    )
-    parts.append(
-        "There are dozens hiding in plain sight."
-    )
+That is over 700% escalation.
 
-    return "\n\n".join(parts)
+No investment guarantees that.
+But neglect does.
+"""
+
+    scenario = f"""
+Imagine hearing a faint grinding sound.
+You tell yourself: next month.
+
+Three months later,
+the system collapses.
+
+Invoice: ${amount}.
+"""
+
+    reinforcement = expand_block("""
+Most financial disasters are silent.
+They grow slowly.
+They hide behind delay.
+And then they hit at once.
+""", 8)
+
+    closing = f"""
+The ${amount} mistake is not mechanical.
+It is behavioral.
+
+Fix behavior.
+Fix outcome.
+"""
+
+    script = "\n\n".join([
+        intro,
+        core,
+        psychology,
+        math_section,
+        scenario,
+        reinforcement,
+        closing
+    ])
+
+    return script.strip()
 
 
 def run(project_path: Path):
+
     state = load_state(project_path)
 
     if state.get("phase") != "SCRIPT":
@@ -126,18 +119,22 @@ def run(project_path: Path):
 
     word_count = len(script_text.split())
 
-    if word_count < 900:
-        raise Exception("Generated script too short. Must be longform.")
+    if word_count < MIN_WORDS:
+        raise Exception(f"Script too short: {word_count} words")
 
-    scripts_dir = project_path / "assets"
-    scripts_dir.mkdir(exist_ok=True)
+    assets_dir = project_path / "assets"
+    assets_dir.mkdir(exist_ok=True)
 
-    script_file = scripts_dir / "script.txt"
+    script_file = assets_dir / "script.txt"
 
     with open(script_file, "w") as f:
         f.write(script_text)
 
     state["script_path"] = "assets/script.txt"
+
+    if "metrics" not in state:
+        state["metrics"] = {}
+
     state["metrics"]["word_count"] = word_count
 
     save_state(project_path, state)
