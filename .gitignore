@@ -19,4 +19,4 @@ SCENE
 *.bak
 
 # Local state
-token.json
+token.json.env

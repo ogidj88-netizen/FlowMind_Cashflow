@@ -1,0 +1,92 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# FlowMind Cashflow Mode — Single CLI Entry (SAFE)
+# Run as:
+#   ./tools/fm status <PROJECT_PATH>
+#   ./tools/fm resume <PROJECT_PATH>
+#   ./tools/fm recover <PROJECT_PATH>
+#   ./tools/fm set-phase <PROJECT_PATH> <PHASE>
+#   ./tools/fm dispatch <PROJECT_PATH>
+#   ./tools/fm archive <PROJECT_PATH>
+#   ./tools/fm cleanup <PROJECT_PATH>
+#   ./tools/fm open <PATH>
+#   ./tools/fm show <PATH>
+
+PYTHON_BIN="${PYTHON_BIN:-python3}"
+
+die() { echo "[FM] ERROR: $*" >&2; exit 1; }
+need() { command -v "$1" >/dev/null 2>&1 || die "missing command: $1"; }
+
+need "$PYTHON_BIN"
+
+cmd="${1:-}"
+shift || true
+
+if [[ -z "${cmd}" ]]; then
+  cat >&2 <<'USAGE'
+[FM] Usage:
+  ./tools/fm status <PROJECT_PATH>
+  ./tools/fm resume <PROJECT_PATH>
+  ./tools/fm recover <PROJECT_PATH>
+  ./tools/fm set-phase <PROJECT_PATH> <PHASE>
+  ./tools/fm dispatch <PROJECT_PATH>
+  ./tools/fm archive <PROJECT_PATH>
+  ./tools/fm cleanup <PROJECT_PATH>
+  ./tools/fm open <PATH>
+  ./tools/fm show <PATH>
+USAGE
+  exit 1
+fi
+
+case "$cmd" in
+  status)
+    [[ $# -eq 1 ]] || die "status requires <PROJECT_PATH>"
+    exec "$PYTHON_BIN" -m tools.project_ctl status "$1"
+    ;;
+
+  resume)
+    [[ $# -eq 1 ]] || die "resume requires <PROJECT_PATH>"
+    exec "$PYTHON_BIN" -m tools.project_ctl resume "$1"
+    ;;
+
+  recover)
+    [[ $# -eq 1 ]] || die "recover requires <PROJECT_PATH>"
+    exec "$PYTHON_BIN" -m tools.project_ctl recover "$1"
+    ;;
+
+  set-phase|set_phase)
+    [[ $# -eq 2 ]] || die "set-phase requires <PROJECT_PATH> <PHASE>"
+    exec "$PYTHON_BIN" -m tools.project_ctl set-phase "$1" "$2"
+    ;;
+
+  dispatch)
+    [[ $# -eq 1 ]] || die "dispatch requires <PROJECT_PATH>"
+    exec "$PYTHON_BIN" -m dispatcher.engine "$1"
+    ;;
+
+  archive)
+    [[ $# -eq 1 ]] || die "archive requires <PROJECT_PATH>"
+    exec "$PYTHON_BIN" -m tools.archive_project "$1"
+    ;;
+
+  cleanup)
+    [[ $# -eq 1 ]] || die "cleanup requires <PROJECT_PATH>"
+    exec "$PYTHON_BIN" -m tools.cleanup_project "$1"
+    ;;
+
+  open)
+    [[ $# -eq 1 ]] || die "open requires <PATH>"
+    exec nano "$1"
+    ;;
+
+  show)
+    [[ $# -eq 1 ]] || die "show requires <PATH>"
+    need less
+    exec less -R "$1"
+    ;;
+
+  *)
+    die "unknown command: $cmd"
+    ;;
+esac

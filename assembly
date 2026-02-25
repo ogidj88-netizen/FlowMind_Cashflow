@@ -1,0 +1,82 @@
+#!/usr/bin/env python3
+"""
+FlowMind — Assembly v1 (Cashflow Mode)
+
+Deterministic FFmpeg Master Builder.
+Enforces FlowMind FFmpeg Stability Standard v1.2
+
+Output:
+- 1920x1080
+- 30 FPS CFR
+- libx264
+- yuv420p
+- AAC 48kHz stereo
+- +faststart
+"""
+
+from __future__ import annotations
+import subprocess
+import sys
+import os
+
+
+def run(cmd: list[str]) -> None:
+    proc = subprocess.run(cmd)
+    if proc.returncode != 0:
+        raise RuntimeError("FFmpeg command failed")
+
+
+def build_final(video_input: str, audio_input: str, output_path: str) -> None:
+    if not os.path.isfile(video_input):
+        raise FileNotFoundError(f"Video input not found: {video_input}")
+    if not os.path.isfile(audio_input):
+        raise FileNotFoundError(f"Audio input not found: {audio_input}")
+
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-i", video_input,
+        "-i", audio_input,
+        "-map", "0:v:0",
+        "-map", "1:a:0",
+        "-c:v", "libx264",
+        "-preset", "medium",
+        "-profile:v", "high",
+        "-level", "4.2",
+        "-pix_fmt", "yuv420p",
+        "-r", "30",
+        "-vf", "scale=1920:1080,setsar=1",
+        "-c:a", "aac",
+        "-b:a", "192k",
+        "-ar", "48000",
+        "-ac", "2",
+        "-movflags", "+faststart",
+        output_path
+    ]
+
+    run(cmd)
+
+
+def main(argv: list[str]) -> int:
+    if len(argv) != 4:
+        print("Usage: assembly_v1.py <VIDEO_INPUT> <AUDIO_INPUT> <OUTPUT_PATH>")
+        return 2
+
+    video_input = argv[1]
+    audio_input = argv[2]
+    output_path = argv[3]
+
+    try:
+        build_final(video_input, audio_input, output_path)
+    except Exception as e:
+        print(f"[ASSEMBLY ERROR] {e}")
+        return 3
+
+    print(f"[ASSEMBLY] Final video generated: {output_path}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main(sys.argv))

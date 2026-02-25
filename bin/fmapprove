@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+PROJECT_ID="${1:?PROJECT_ID required}"
+
+python3 /home/admi/FlowMind_Cashflow/tools/approve_delivery_pack.py "$PROJECT_ID"
+
+echo "[INFO] Current DELIVERY_PACK.json:"
+cat "projects/${PROJECT_ID}/DELIVERY_PACK.json"

@@ -1,0 +1,10 @@
+# FlowMind Cashflow RC (single source of truth for shell helpers)
+
+# Add FlowMind bin to PATH (once)
+export PATH="/home/admi/FlowMind_Cashflow/bin:$PATH"
+
+# Force NO alias confusion: define functions that shadow aliases safely
+fmpack() { /home/admi/FlowMind_Cashflow/bin/fmpack "$@"; }
+fmqa()   { python3 /home/admi/FlowMind_Cashflow/fm.py qa "$@"; }
+fmst()   { python3 /home/admi/FlowMind_Cashflow/fm.py status "$@"; }
+fmdone() { python3 /home/admi/FlowMind_Cashflow/fm.py done "$@"; }
