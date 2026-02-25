@@ -1,7 +1,7 @@
 """
 FlowMind Cashflow
-S3 — Scene Planner v1
-Paragraph-based scene segmentation
+S3 — Scene Planner v2
+Paragraph segmentation + duration aggregation
 """
 
 import json
@@ -20,7 +20,6 @@ def save_state(project_path: Path, state: dict):
 
 def estimate_duration(text: str):
     words = len(text.split())
-    # ~160 words per minute average narration
     minutes = words / 160
     seconds = int(minutes * 60)
     return max(3, seconds)
@@ -48,12 +47,16 @@ def run(project_path: Path):
     paragraphs = [p.strip() for p in script_text.split("\n\n") if p.strip()]
 
     scenes = []
+    total_seconds = 0
 
     for idx, paragraph in enumerate(paragraphs, start=1):
+        duration = estimate_duration(paragraph)
+        total_seconds += duration
+
         scenes.append({
             "scene_id": idx,
             "text": paragraph,
-            "estimated_duration_sec": estimate_duration(paragraph)
+            "estimated_duration_sec": duration
         })
 
     assets_dir = project_path / "assets"
@@ -64,9 +67,16 @@ def run(project_path: Path):
 
     state["scene_plan_path"] = "assets/scene_plan.json"
 
+    # Update metrics
+    if "metrics" not in state:
+        state["metrics"] = {}
+
+    state["metrics"]["estimated_duration_minutes"] = round(total_seconds / 60, 2)
+
     save_state(project_path, state)
 
     print("S3 Scene plan generated.")
+    print(f"Estimated total duration: {round(total_seconds / 60, 2)} minutes")
 
 
 if __name__ == "__main__":
