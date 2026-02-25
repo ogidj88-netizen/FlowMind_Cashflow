@@ -1,7 +1,7 @@
 """
 FlowMind Cashflow
-S2 — Deterministic Script Engine v1
-Money Mistakes Structure
+S2 — Script Engine v2
+File-based output (canonical)
 """
 
 import json
@@ -19,42 +19,35 @@ def save_state(project_path: Path, state: dict):
 
 
 def build_script(topic: str, hook: str, amount: int):
-    script = []
+    parts = []
 
-    # Hook (0–15 sec)
-    script.append(hook)
+    parts.append(hook)
 
-    # Context
-    script.append(
+    parts.append(
         f"Most people never notice how small financial decisions slowly cost them ${amount}."
     )
 
-    # Problem escalation
-    script.append(
-        f"It starts small. Then suddenly you're missing hundreds of dollars."
+    parts.append(
+        "It starts small. Then suddenly you're missing hundreds of dollars."
     )
 
-    # Psychological trigger
-    script.append(
+    parts.append(
         "And the worst part? You think everything is fine."
     )
 
-    # Example block
-    script.append(
+    parts.append(
         f"Imagine checking your account and realizing you've lost ${amount} because of one tiny oversight."
     )
 
-    # Consequence framing
-    script.append(
+    parts.append(
         "This is not bad luck. It's a predictable pattern."
     )
 
-    # Soft resolution (без продажу)
-    script.append(
+    parts.append(
         "Once you understand the pattern, you stop bleeding money."
     )
 
-    return "\n\n".join(script)
+    return "\n\n".join(parts)
 
 
 def run(project_path: Path):
@@ -72,11 +65,20 @@ def run(project_path: Path):
 
     script_text = build_script(topic, hook, amount)
 
-    state["script"] = script_text
+    scripts_dir = project_path / "assets"
+    scripts_dir.mkdir(exist_ok=True)
+
+    script_file = scripts_dir / "script.txt"
+
+    with open(script_file, "w") as f:
+        f.write(script_text)
+
+    state["script_path"] = str(script_file)
+    state.pop("script", None)
 
     save_state(project_path, state)
 
-    print("S2 Script generated.")
+    print("S2 Script generated and saved to file.")
 
 
 if __name__ == "__main__":
