@@ -1,31 +1,41 @@
 """
-FlowMind Cashflow
-S3 — Scene Planner v2
-Paragraph segmentation + duration aggregation
+FlowMind Cashflow Mode
+S3 — Scene Planner (Duration-Aware)
+
+Policy:
+- Target scene length: 10–18 sec
+- Avoid ultra-short scenes
+- Audio = master clock
 """
 
 import json
 from pathlib import Path
+from engine.state_manager import load_state, save_state
+
+WPM = 155
+MIN_SCENE_SEC = 8
+MAX_SCENE_SEC = 20
 
 
-def load_state(project_path: Path):
-    with open(project_path / "PROJECT_STATE.json", "r") as f:
-        return json.load(f)
-
-
-def save_state(project_path: Path, state: dict):
-    with open(project_path / "PROJECT_STATE.json", "w") as f:
-        json.dump(state, f, indent=2)
-
-
-def estimate_duration(text: str):
+def estimate_seconds(text: str):
     words = len(text.split())
-    minutes = words / 160
-    seconds = int(minutes * 60)
-    return max(3, seconds)
+    return int((words / WPM) * 60)
+
+
+def split_into_chunks(text: str, target_sec=15):
+    words = text.split()
+    chunk_size = int(WPM * (target_sec / 60))
+
+    chunks = []
+    for i in range(0, len(words), chunk_size):
+        chunk = words[i:i + chunk_size]
+        chunks.append(" ".join(chunk))
+
+    return chunks
 
 
 def run(project_path: Path):
+
     state = load_state(project_path)
 
     if state.get("phase") != "SCENE":
@@ -44,20 +54,24 @@ def run(project_path: Path):
     with open(full_script_path, "r") as f:
         script_text = f.read()
 
-    paragraphs = [p.strip() for p in script_text.split("\n\n") if p.strip()]
+    chunks = split_into_chunks(script_text, target_sec=14)
 
     scenes = []
     total_seconds = 0
 
-    for idx, paragraph in enumerate(paragraphs, start=1):
-        duration = estimate_duration(paragraph)
-        total_seconds += duration
+    for idx, chunk in enumerate(chunks, start=1):
+        sec = estimate_seconds(chunk)
+
+        if sec < MIN_SCENE_SEC:
+            continue
 
         scenes.append({
             "scene_id": idx,
-            "text": paragraph,
-            "estimated_duration_sec": duration
+            "text": chunk.strip(),
+            "estimated_duration_sec": sec
         })
+
+        total_seconds += sec
 
     assets_dir = project_path / "assets"
     scene_file = assets_dir / "scene_plan.json"
@@ -67,16 +81,17 @@ def run(project_path: Path):
 
     state["scene_plan_path"] = "assets/scene_plan.json"
 
-    # Update metrics
     if "metrics" not in state:
         state["metrics"] = {}
 
+    state["metrics"]["scene_count"] = len(scenes)
     state["metrics"]["estimated_duration_minutes"] = round(total_seconds / 60, 2)
 
     save_state(project_path, state)
 
     print("S3 Scene plan generated.")
-    print(f"Estimated total duration: {round(total_seconds / 60, 2)} minutes")
+    print(f"Scenes: {len(scenes)}")
+    print(f"Total duration: {round(total_seconds/60,2)} minutes")
 
 
 if __name__ == "__main__":
