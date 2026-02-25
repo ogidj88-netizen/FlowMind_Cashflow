@@ -1,7 +1,7 @@
 """
 FlowMind Cashflow
-S2 — Script Engine v2
-File-based output (canonical)
+S2 — Script Engine v3
+Relative path canonical model
 """
 
 import json
@@ -73,7 +73,7 @@ def run(project_path: Path):
     with open(script_file, "w") as f:
         f.write(script_text)
 
-    state["script_path"] = str(script_file)
+    state["script_path"] = "assets/script.txt"
     state.pop("script", None)
 
     save_state(project_path, state)
