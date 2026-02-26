@@ -20,3 +20,4 @@ SCENE
 
 # Local state
 token.json.env
+.env
