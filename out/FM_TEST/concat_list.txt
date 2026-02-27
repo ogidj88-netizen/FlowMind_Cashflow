@@ -1,0 +1,6 @@
+file '/Users/evgenmazurec/FlowMind/FlowMind_Cashflow/assets/cache/FM_TEST/video/01_hook.mp4'
+file '/Users/evgenmazurec/FlowMind/FlowMind_Cashflow/assets/cache/FM_TEST/video/02_problem.mp4'
+file '/Users/evgenmazurec/FlowMind/FlowMind_Cashflow/assets/cache/FM_TEST/video/03_mechanism.mp4'
+file '/Users/evgenmazurec/FlowMind/FlowMind_Cashflow/assets/cache/FM_TEST/video/04_why_it_happens.mp4'
+file '/Users/evgenmazurec/FlowMind/FlowMind_Cashflow/assets/cache/FM_TEST/video/05_stakes.mp4'
+file '/Users/evgenmazurec/FlowMind/FlowMind_Cashflow/assets/cache/FM_TEST/video/06_promise.mp4'

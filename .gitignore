@@ -21,3 +21,15 @@ SCENE
 # Local state
 token.json.env
 .env
+# Secrets / local env
+.env
+.env.*
+token.json
+token.json.env
+**/*token*.json
+**/*credentials*
+**/*.pem
+**/*.key
+doc_*.env
+*.env
+.env.*

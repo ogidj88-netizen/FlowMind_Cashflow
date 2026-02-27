@@ -1,160 +1,143 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+"""
+FlowMind Cashflow — Production Orchestrator v5
+LOCK + RECOVER + PROJECT_ID VALIDATION
+"""
+
 import sys
 import json
-import subprocess
+import time
 from pathlib import Path
-from datetime import datetime, timezone
 
 
-def run(cmd):
-    r = subprocess.run(cmd, check=False)
-    return r.returncode
+PROJECTS_DIR = Path("projects")
 
 
-def state_path(project_id: str) -> Path:
-    return Path(f"projects/{project_id}/PROJECT_STATE.json")
+def load_state(project_id):
+    path = PROJECTS_DIR / project_id / "PROJECT_STATE.json"
+
+    if not path.exists():
+        raise RuntimeError("PROJECT_STATE not found")
+
+    state = json.loads(path.read_text())
+
+    # 🔒 PROJECT ID VALIDATION
+    file_project_id = state.get("project_id")
+    if file_project_id != project_id:
+        raise RuntimeError(
+            f"[VALIDATION ERROR] Folder '{project_id}' "
+            f"!= PROJECT_STATE.project_id '{file_project_id}'"
+        )
+
+    return path, state
 
 
-def delivery_pack_path(project_id: str) -> Path:
-    return Path(f"projects/{project_id}/DELIVERY_PACK.json")
+def create_lock(project_id):
+    lock_path = PROJECTS_DIR / project_id / ".orch.lock"
+
+    if lock_path.exists():
+        print("[LOCK] Another orchestrator is running.")
+        return None
+
+    lock_path.write_text("LOCKED")
+    return lock_path
 
 
-def final_video_path(project_id: str) -> Path:
-    return Path(f"projects/{project_id}/out/{project_id}/final.mp4")
+def release_lock(lock_path):
+    if lock_path and lock_path.exists():
+        lock_path.unlink()
 
 
-def read_json(p: Path) -> dict:
-    return json.loads(p.read_text())
+def run_audio_plan(project_id):
+    import tools.step_audio_plan as mod
+    mod.main(["step_audio_plan", project_id])
 
 
-def write_json(p: Path, obj: dict) -> None:
-    p.write_text(json.dumps(obj, indent=2))
+def run_autopilot_tick(project_id):
+    import tools.autopilot_tick as mod
+    mod.main(["autopilot_tick", project_id])
 
 
-def show_status(project_id: str) -> int:
-    p = state_path(project_id)
-    if not p.exists():
-        print(f"[FAIL] state not found: {p}")
-        return 2
-
-    try:
-        s = read_json(p)
-    except Exception as e:
-        print(f"[FAIL] cannot read JSON: {e}")
-        return 3
-
-    phase = s.get("phase")
-    mode = s.get("mode")
-    qa = s.get("qa_passed")
-    locked = s.get("mode_locked")
-
-    try:
-        st = p.stat()
-        writable = bool(st.st_mode & 0o200)
-    except Exception:
-        writable = None
-
-    print(f"[STATUS] project_id={project_id}")
-    print(f"[STATUS] phase={phase}")
-    print(f"[STATUS] mode={mode}")
-    print(f"[STATUS] qa_passed={qa}")
-    print(f"[STATUS] mode_locked={locked}")
-    print(f"[STATUS] state_writable={writable}  (False means read-only)")
-    return 0
+def run_recover(project_id):
+    from dispatcher.recover_bridge_v1 import run as recover_run
+    recover_run(project_id)
 
 
-def help_text() -> None:
-    print("FlowMind Cashflow — control panel")
-    print("")
-    print("Commands:")
-    print("  python3 fm.py qa <PROJECT_ID>      # run pre-QA router (SHORT/LONG gate)")
-    print("  python3 fm.py status <PROJECT_ID>  # show state summary")
-    print("  python3 fm.py done <PROJECT_ID>    # qa + status (one-shot)")
-    print("  python3 fm.py pack <PROJECT_ID>    # create DELIVERY_PACK.json (FINAL_READY only)")
-    print("  python3 fm.py help                 # show this help")
-    print("")
-    print("Aliases (if added to ~/.bashrc):")
-    print("  fmqa <PROJECT_ID>")
-    print("  fmst <PROJECT_ID>")
-    print("  fmdone <PROJECT_ID>")
-    print("  fmpack <PROJECT_ID>")
+def orchestrate_once(project_id):
 
+    state_path, state = load_state(project_id)
+    phase = state.get("phase")
 
-def make_pack(project_id: str) -> int:
-    sp = state_path(project_id)
-    if not sp.exists():
-        print(f"[FAIL] state not found: {sp}")
-        return 2
+    print(f"[ORCH] Phase: {phase}")
 
-    state = read_json(sp)
+    if phase == "AUDIO_PLAN":
+        run_audio_plan(project_id)
+        return
 
-    if state.get("phase") != "FINAL_READY":
-        print(f"[FAIL] phase must be FINAL_READY, got: {state.get('phase')}")
-        return 3
+    if phase in (
+        "AUDIO_RENDER",
+        "ASSEMBLY_FROM_AUDIO",
+        "FINAL_QA",
+        "DELIVERY_PACK",
+        "AWAITING_APPROVAL",
+        "APPROVED",
+        "READY_FOR_UPLOAD"
+    ):
+        run_autopilot_tick(project_id)
+        return
 
-    vp = final_video_path(project_id)
-    if not vp.exists():
-        print(f"[FAIL] final video not found: {vp}")
-        return 4
+    if phase == "ARCHIVED":
+        print("[ORCH] ARCHIVED — stopping.")
+        return "STOP"
 
-    created_at = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+    if phase == "HALT":
+        print("[ORCH] HALTED — use --recover")
+        return "STOP"
 
-    pack = {
-        "project_id": project_id,
-        "created_at": created_at,
-        "phase": state.get("phase"),
-        "mode": state.get("mode"),
-        "qa_passed": state.get("qa_passed"),
-        "paths": {
-            "state": str(sp),
-            "final_video": str(vp),
-        },
-        "notes": {
-            "upload_ready": False,
-            "telegram_approved": False,
-        }
-    }
-
-    dp = delivery_pack_path(project_id)
-    write_json(dp, pack)
-    print(f"[PACK] written: {dp}")
-    return 0
+    print("[ORCH] Unknown phase.")
 
 
 def main():
-    if len(sys.argv) == 2 and sys.argv[1] == "help":
-        help_text()
-        sys.exit(0)
 
-    if len(sys.argv) < 3:
-        help_text()
+    if len(sys.argv) < 2:
+        print("Usage: python fm.py <PROJECT_ID> [--loop|--recover]")
         sys.exit(1)
 
-    action = sys.argv[1]
-    project_id = sys.argv[2]
+    project_id = sys.argv[1]
+    loop_mode = "--loop" in sys.argv
+    recover_mode = "--recover" in sys.argv
 
-    if action == "qa":
-        sys.exit(run(["engine/qa/pre_qa_router_v1.sh", project_id]))
+    if recover_mode:
+        run_recover(project_id)
+        return
 
-    if action == "status":
-        sys.exit(show_status(project_id))
+    lock_path = create_lock(project_id)
 
-    if action == "done":
-        code = run(["engine/qa/pre_qa_router_v1.sh", project_id])
-        if code != 0:
-            print(f"[DONE] QA failed with code={code}")
-            sys.exit(code)
-        print("[DONE] QA passed. Showing status:")
-        sys.exit(show_status(project_id))
+    if lock_path is None:
+        sys.exit(1)
 
-    if action == "pack":
-        sys.exit(make_pack(project_id))
+    try:
 
-    print(f"Unknown action: {action}")
-    help_text()
-    sys.exit(2)
+        if not loop_mode:
+            orchestrate_once(project_id)
+            return
+
+        print(f"[ORCH] LOOP START project={project_id}")
+
+        while True:
+            result = orchestrate_once(project_id)
+
+            if result == "STOP":
+                print("[ORCH] LOOP END")
+                break
+
+            time.sleep(5)
+
+    finally:
+        release_lock(lock_path)
 
 
 if __name__ == "__main__":
     main()
-

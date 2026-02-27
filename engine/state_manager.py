@@ -1,73 +1,54 @@
 #!/usr/bin/env python3
+
 """
-FlowMind — STATE MANAGER v6 (Forward-safe)
-- Anti-rollback after ASSEMBLY (but allows forward FINAL_READY)
-- Guaranteed re-lock on ASSEMBLY and FINAL_READY
+FlowMind Cashflow
+State Manager (Deterministic Phase Control)
+
+Single source of truth: projects/<PROJECT_ID>/PROJECT_STATE.json
 """
 
-import json
 import os
-from pathlib import Path
+import json
 
 
-def get_state_path(project_id: str) -> Path:
-    return Path(f"projects/{project_id}/PROJECT_STATE.json")
+BASE_DIR = "projects"
 
 
-def load_state(project_id: str) -> dict:
-    p = get_state_path(project_id)
-    if not p.exists():
-        raise FileNotFoundError("PROJECT_STATE.json not found")
-    with open(p, "r") as f:
-        return json.load(f)
+def _state_path(project_id: str) -> str:
+    return os.path.join(BASE_DIR, project_id, "PROJECT_STATE.json")
 
 
-def save_state(project_id: str, new_state: dict) -> dict:
-    p = get_state_path(project_id)
-    if not p.exists():
-        raise FileNotFoundError("PROJECT_STATE.json not found")
+def _ensure_project(project_id: str):
+    project_path = os.path.join(BASE_DIR, project_id)
+    os.makedirs(project_path, exist_ok=True)
 
-    with open(p, "r") as f:
-        current = json.load(f)
+    state_file = _state_path(project_id)
 
-    cur_phase = current.get("phase")
-    new_phase = new_state.get("phase")
-
-    # ✅ Forward-safe rule after ASSEMBLY
-    if cur_phase == "ASSEMBLY":
-        allowed_next = {"ASSEMBLY", "FINAL_READY"}
-        if new_phase not in allowed_next:
-            # re-lock defensively
-            os.chmod(p, 0o444)
-            raise RuntimeError("Phase rollback forbidden after ASSEMBLY (only FINAL_READY allowed)")
-
-    try:
-        os.chmod(p, 0o644)
-        with open(p, "w") as f:
-            json.dump(new_state, f, indent=2)
-        _apply_locks_if_needed(project_id)
-        return new_state
-    finally:
-        # always enforce lock for terminal-like phases
-        with open(p, "r") as f:
-            final_state = json.load(f)
-        if final_state.get("phase") in {"ASSEMBLY", "FINAL_READY"}:
-            os.chmod(p, 0o444)
+    if not os.path.exists(state_file):
+        default_state = {
+            "project_id": project_id,
+            "phase": "TOPIC"
+        }
+        with open(state_file, "w") as f:
+            json.dump(default_state, f, indent=2)
 
 
-def _apply_locks_if_needed(project_id: str):
-    p = get_state_path(project_id)
-    with open(p, "r") as f:
-        state = json.load(f)
+def get_phase(project_id: str) -> str:
+    _ensure_project(project_id)
 
-    # Ensure mode_locked when entering ASSEMBLY
-    if state.get("phase") == "ASSEMBLY":
-        if not state.get("mode_locked"):
-            state["mode_locked"] = True
-            os.chmod(p, 0o644)
-            with open(p, "w") as wf:
-                json.dump(state, wf, indent=2)
+    with open(_state_path(project_id), "r") as f:
+        data = json.load(f)
 
-    # Lock both ASSEMBLY and FINAL_READY
-    if state.get("phase") in {"ASSEMBLY", "FINAL_READY"}:
-        os.chmod(p, 0o444)
+    return data.get("phase", "TOPIC")
+
+
+def set_phase(project_id: str, new_phase: str):
+    _ensure_project(project_id)
+
+    with open(_state_path(project_id), "r") as f:
+        data = json.load(f)
+
+    data["phase"] = new_phase
+
+    with open(_state_path(project_id), "w") as f:
+        json.dump(data, f, indent=2)

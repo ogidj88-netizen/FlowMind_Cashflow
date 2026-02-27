@@ -1,96 +1,161 @@
 #!/usr/bin/env python3
 """
-FlowMind — Scene Planner v1 (Cashflow Mode)
+FlowMind Cashflow
+Scene Planner v1 (PROJECT_ID in, deterministic out)
 
-Paragraph-based scene mapping.
-Audio = Master Clock compatible.
+Input:
+- argv[1] = PROJECT_ID
+
+Reads:
+- projects/<PROJECT_ID>/SCRIPT.txt (required)
+
+Writes:
+- projects/<PROJECT_ID>/SCENE_PLAN.json
+
+Rules:
+- PASS => exit(0)
+- FAIL => exit(1)
 """
 
-from __future__ import annotations
+import os
+import sys
 import json
 import re
-import sys
-from typing import List, Dict
+from datetime import datetime
+
+BASE_DIR = "projects"
 
 
-WORDS_PER_MINUTE = 150  # conservative narration speed
-MIN_SCENE_SECONDS = 5
+def project_dir(project_id: str) -> str:
+    return os.path.join(BASE_DIR, project_id)
 
 
-def _estimate_duration_seconds(text: str) -> int:
-    words = len(text.split())
-    minutes = words / WORDS_PER_MINUTE
-    seconds = int(minutes * 60)
-    return max(seconds, MIN_SCENE_SECONDS)
+def script_txt_path(project_id: str) -> str:
+    return os.path.join(project_dir(project_id), "SCRIPT.txt")
 
 
-def _extract_keywords(text: str, max_keywords: int = 5) -> List[str]:
-    words = re.findall(r"[A-Za-z]{4,}", text.lower())
-    unique = []
-    for w in words:
-        if w not in unique:
-            unique.append(w)
-        if len(unique) >= max_keywords:
+def scene_plan_path(project_id: str) -> str:
+    return os.path.join(project_dir(project_id), "SCENE_PLAN.json")
+
+
+def read_script(project_id: str) -> str:
+    path = script_txt_path(project_id)
+    if not os.path.exists(path):
+        raise FileNotFoundError(f"Missing SCRIPT.txt at: {path}")
+    with open(path, "r", encoding="utf-8") as f:
+        text = f.read().strip()
+    if not text:
+        raise ValueError("SCRIPT.txt is empty.")
+    return text
+
+
+def split_sentences(text: str):
+    # Deterministic sentence split (simple)
+    parts = re.split(r"[.!?]\s+", text.strip())
+    return [p.strip() for p in parts if p and p.strip()]
+
+
+def extract_keywords(text: str, limit: int = 10):
+    tokens = re.findall(r"[A-Za-z']{3,}", text.lower())
+    stop = {
+        "this", "that", "because", "today", "later", "never", "most", "people",
+        "your", "you", "will", "then", "into", "from", "with", "over", "just",
+        "they", "them", "their", "been", "when", "what", "where", "why", "how",
+        "and", "the", "a", "an", "to", "of", "in", "on", "it", "is", "are", "was",
+        "be", "as", "at", "or", "but"
+    }
+    uniq = []
+    seen = set()
+    for t in tokens:
+        if t in stop:
+            continue
+        if t in seen:
+            continue
+        seen.add(t)
+        uniq.append(t)
+        if len(uniq) >= limit:
             break
-    return unique
+    return uniq
 
 
-def split_into_paragraphs(script: str) -> List[str]:
-    parts = [p.strip() for p in script.split("\n") if p.strip()]
-    return parts
+def build_scene_plan(project_id: str, script_text: str) -> dict:
+    sentences = split_sentences(script_text)
+    if not sentences:
+        raise ValueError("Script has no sentences after splitting.")
 
-
-def build_scene_plan(script: str) -> Dict:
-    paragraphs = split_into_paragraphs(script)
+    # Minimal deterministic buckets
+    buckets = [
+        ("hook", 1),
+        ("problem", 2),
+        ("mechanism", 2),
+        ("why_it_happens", 2),
+        ("stakes", 2),
+        ("promise", 1),
+    ]
 
     scenes = []
-    total_duration = 0
+    idx = 0
+    scene_num = 1
 
-    for idx, paragraph in enumerate(paragraphs, start=1):
-        duration = _estimate_duration_seconds(paragraph)
-        keywords = _extract_keywords(paragraph)
+    for label, count in buckets:
+        chunk = sentences[idx: idx + count]
+        if not chunk:
+            break
+        idx += count
 
-        scene = {
-            "scene_id": f"S{idx:03}",
-            "text": paragraph,
-            "estimated_duration_seconds": duration,
-            "keywords": keywords
-        }
+        chunk_text = " ".join(chunk)
+        keywords = extract_keywords(chunk_text, limit=10)
 
-        total_duration += duration
-        scenes.append(scene)
+        scenes.append({
+            "scene_id": f"{scene_num:02d}_{label}",
+            "label": label,
+            "text": chunk_text,
+            "keywords": keywords,
+            "estimated_seconds": max(6, min(12, 3 + len(chunk) * 3)),
+        })
+        scene_num += 1
+
+    if not scenes:
+        raise ValueError("Failed to build any scenes from script.")
 
     return {
-        "scenes_count": len(scenes),
-        "estimated_total_duration_seconds": total_duration,
-        "scenes": scenes
+        "project_id": project_id,
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "source": {"script_txt": script_txt_path(project_id)},
+        "scenes": scenes,
+        "notes": {
+            "model": "scene_planner_v1",
+            "policy": "project_id_in__files_in_projects_dir",
+            "estimates_are_placeholders": True,
+        },
     }
 
 
-def main(argv: List[str]) -> int:
-    if len(argv) != 2:
-        print("Usage: scene_planner_v1.py <SCRIPT_JSON_PATH>")
-        return 2
+def main(argv) -> int:
+    if len(argv) < 2:
+        print("Usage: python -m engine.scene_planner_v1 <PROJECT_ID>")
+        return 1
 
-    script_path = argv[1]
+    project_id = argv[1].strip()
+    if not project_id:
+        print("[SCENES FAIL] Empty PROJECT_ID")
+        return 1
 
-    with open(script_path, "r", encoding="utf-8") as f:
-        data = json.load(f)
+    try:
+        script_text = read_script(project_id)
+        plan = build_scene_plan(project_id, script_text)
 
-    script_text = data.get("script")
-    if not script_text:
-        print("Script text not found in JSON under 'script' key.")
-        return 3
+        os.makedirs(project_dir(project_id), exist_ok=True)
+        out_path = scene_plan_path(project_id)
+        with open(out_path, "w", encoding="utf-8") as f:
+            json.dump(plan, f, indent=2, ensure_ascii=False)
 
-    scene_plan = build_scene_plan(script_text)
+        print(f"[SCENES PASS] Written: {out_path}")
+        return 0
 
-    output_path = script_path.replace(".json", "_SCENE_PLAN.json")
-
-    with open(output_path, "w", encoding="utf-8") as f:
-        json.dump(scene_plan, f, ensure_ascii=False, indent=2)
-
-    print(f"[SCENE PLANNER] Generated: {output_path}")
-    return 0
+    except Exception as e:
+        print(f"[SCENES FAIL] {e}")
+        return 1
 
 
 if __name__ == "__main__":
